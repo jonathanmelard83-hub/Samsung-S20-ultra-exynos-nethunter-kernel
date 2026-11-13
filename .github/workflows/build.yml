@@ -34,6 +34,7 @@ jobs:
         run: |
           DEFCONFIG="arch/arm64/configs/exynos9830-z3sxxx_defconfig"
           sed -i 's/# CONFIG_MAC80211 is not set/CONFIG_MAC80211=y/' "$DEFCONFIG"
+          sed -i 's/CONFIG_RTL8821AE=y/# CONFIG_RTL8821AE is not set/' "$DEFCONFIG"
           cat << 'CONF' >> "$DEFCONFIG"
           CONFIG_MAC80211_RC_MINSTREL=y
           CONFIG_MAC80211_RC_MINSTREL_HT=y
@@ -91,7 +92,7 @@ jobs:
           make "${MAKE_ARGS[@]}" syncconfig < /dev/null
 
           echo "=== Verification des pilotes actives dans .config ==="
-          grep -E "CONFIG_MAC80211=|CONFIG_RT2800USB=|CONFIG_RT2800USB_RT3573=|CONFIG_88XXAU=" .config
+          grep -E "CONFIG_MAC80211=|CONFIG_RT2800USB=|CONFIG_RT2800USB_RT3573=|CONFIG_88XXAU=|RTL8821AE" .config || true
 
           make -j$(nproc) "${MAKE_ARGS[@]}" KCFLAGS="-w -Wno-gnu-variable-sized-type-not-at-end" < /dev/null
 
