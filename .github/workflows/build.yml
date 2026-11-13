@@ -20,13 +20,10 @@ jobs:
           sudo ln -sf /usr/lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/x86_64-linux-gnu/libncurses.so.5 2>/dev/null || true
           sudo ln -sf /usr/lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/x86_64-linux-gnu/libtinfo.so.5 2>/dev/null || true
 
-      - name: Prepare toolchain and Makefile flags
+      - name: Prepare toolchain permissions
         run: |
           chmod -R 755 toolchain/
           chmod +x build_kernel.sh
-          # Desactiver les avertissements sans corrompre la syntaxe du Makefile
-          echo "KBUILD_CFLAGS += -w -Wno-gnu-variable-sized-type-not-at-end" >> Makefile
-          echo "CLANG_FLAGS += -w" >> Makefile
 
       - name: Enable RT3573 / AE3000 & Wi-Fi drivers in defconfig
         run: |
@@ -41,6 +38,7 @@ jobs:
           CONFIG_RT2X00_LIB_USB=y
           CONFIG_RT2X00_LIB_FIRMWARE=y
           CONFIG_RT2X00_LIB_CRYPTO=y
+          CONFIG_RT2800_LIB=y
           CONFIG_RT2800USB=y
           CONFIG_RT2800USB_RT33XX=y
           CONFIG_RT2800USB_RT35XX=y
@@ -48,8 +46,9 @@ jobs:
           CONFIG_RT2800USB_RT53XX=y
           CONFIG_RT2800USB_RT55XX=y
           CONFIG_RT2800USB_UNKNOWN=y
+          CONFIG_RT2500USB=y
+          CONFIG_RT73USB=y
           CONFIG_ATH9K_HTC=y
-          CONFIG_RTL8187=y
           CONF
 
       - name: Patch AnyKernel3 for S20+
@@ -70,11 +69,17 @@ jobs:
           export ANDROID_MAJOR_VERSION=r
           export SEC_BUILD_CONF_VENDOR_BUILD_OS=13
           export CROSS_COMPILE="$SRCDIR/toolchain/gcc-cfp/gcc-cfp-jopp-only/aarch64-linux-android-4.9/bin/aarch64-linux-android-"
-          export CC="$SRCDIR/toolchain/clang/host/linux-x86/clang-r349610-jopp/bin/clang"
           export PATH="$SRCDIR/toolchain/clang/host/linux-x86/clang-r349610-jopp/bin:$SRCDIR/toolchain/gcc-cfp/gcc-cfp-jopp-only/aarch64-linux-android-4.9/bin:$PATH"
+          CC_BIN="$SRCDIR/toolchain/clang/host/linux-x86/clang-r349610-jopp/bin/clang"
 
-          make exynos9830-z3sxxx_defconfig
-          make -j$(nproc)
+          make ARCH=arm64 CC="$CC_BIN" CROSS_COMPILE="$CROSS_COMPILE" exynos9830-z3sxxx_defconfig
+          make ARCH=arm64 CC="$CC_BIN" CROSS_COMPILE="$CROSS_COMPILE" olddefconfig
+          make ARCH=arm64 CC="$CC_BIN" CROSS_COMPILE="$CROSS_COMPILE" syncconfig < /dev/null
+
+          echo "=== Verification des pilotes actives dans .config ==="
+          grep -E "CONFIG_MAC80211=|CONFIG_RT2800USB=|CONFIG_RT2800USB_RT3573=|CONFIG_88XXAU=" .config
+
+          make -j$(nproc) ARCH=arm64 CC="$CC_BIN" CROSS_COMPILE="$CROSS_COMPILE" KCFLAGS="-w -Wno-gnu-variable-sized-type-not-at-end" < /dev/null
 
           test -f arch/arm64/boot/Image
           cp arch/arm64/boot/Image Image
