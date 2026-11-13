@@ -1,0 +1,69 @@
+name: Build S20+ NetHunter Kernel
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison flex libssl-dev make zip python-is-python3 libelf-dev libncurses6 libtinfo6
+          sudo ln -sf /usr/lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/x86_64-linux-gnu/libncurses.so.5 2>/dev/null || true
+          sudo ln -sf /usr/lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/x86_64-linux-gnu/libtinfo.so.5 2>/dev/null || true
+
+      - name: Enable RT3573 / AE3000 & Wi-Fi drivers in defconfig
+        run: |
+          DEFCONFIG="arch/arm64/configs/exynos9830-z3sxxx_defconfig"
+          sed -i 's/# CONFIG_MAC80211 is not set/CONFIG_MAC80211=y/' "$DEFCONFIG"
+          cat << 'CONF' >> "$DEFCONFIG"
+          CONFIG_MAC80211_RC_MINSTREL=y
+          CONFIG_MAC80211_RC_MINSTREL_HT=y
+          CONFIG_MAC80211_LEDS=y
+          CONFIG_RT2X00=y
+          CONFIG_RT2X00_LIB=y
+          CONFIG_RT2X00_LIB_USB=y
+          CONFIG_RT2X00_LIB_FIRMWARE=y
+          CONFIG_RT2X00_LIB_CRYPTO=y
+          CONFIG_RT2800USB=y
+          CONFIG_RT2800USB_RT33XX=y
+          CONFIG_RT2800USB_RT35XX=y
+          CONFIG_RT2800USB_RT3573=y
+          CONFIG_RT2800USB_RT53XX=y
+          CONFIG_RT2800USB_RT55XX=y
+          CONFIG_RT2800USB_UNKNOWN=y
+          CONFIG_ATH9K_HTC=y
+          CONFIG_RTL8187=y
+          CONF
+
+      - name: Patch AnyKernel3 for S20+
+        run: |
+          cd arch/arm64/boot
+          unzip Nethunter-s20ultra.zip anykernel.sh
+          sed -i 's/do.devicecheck=1/do.devicecheck=0/' anykernel.sh
+          zip -u Nethunter-s20ultra.zip anykernel.sh
+          rm anykernel.sh
+          cd ../../..
+
+      - name: Build Kernel Image
+        run: |
+          chmod +x build_kernel.sh
+          ./build_kernel.sh
+
+      - name: Package S20+ Zip
+        run: |
+          cp arch/arm64/boot/Nethunter-s20ultra.zip Nethunter-s20plus-ae3000.zip
+
+      - name: Upload Finished Kernel Zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nethunter-s20plus-ae3000
+          path: Nethunter-s20plus-ae3000.zip
