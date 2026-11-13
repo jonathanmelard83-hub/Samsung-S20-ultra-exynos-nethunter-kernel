@@ -16,14 +16,19 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc bison flex libssl-dev make zip python-is-python3 libelf-dev libncurses6 libtinfo6
+          sudo apt-get install -y bc bison flex libssl-dev make zip python-is-python3 libelf-dev libncurses6 libtinfo6 binutils-aarch64-linux-gnu
           sudo ln -sf /usr/lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/x86_64-linux-gnu/libncurses.so.5 2>/dev/null || true
           sudo ln -sf /usr/lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/x86_64-linux-gnu/libtinfo.so.5 2>/dev/null || true
 
-      - name: Prepare toolchain permissions
+      - name: Prepare toolchain permissions and binutils links
         run: |
           chmod -R 755 toolchain/
           chmod +x build_kernel.sh
+          GCC_DIR="$(pwd)/toolchain/gcc-cfp/gcc-cfp-jopp-only/aarch64-linux-android-4.9"
+          for tool in as ld ar nm objcopy objdump strip readelf elfedit ranlib addr2line; do
+            ln -sf "aarch64-linux-android-$tool" "$GCC_DIR/bin/aarch64-linux-gnu-$tool"
+          done
+          ln -sfn aarch64-linux-android "$GCC_DIR/aarch64-linux-gnu"
 
       - name: Enable RT3573 / AE3000 & Wi-Fi drivers in defconfig
         run: |
@@ -64,22 +69,31 @@ jobs:
         run: |
           set -e
           SRCDIR="$(pwd)"
+          GCC_DIR="$SRCDIR/toolchain/gcc-cfp/gcc-cfp-jopp-only/aarch64-linux-android-4.9"
           export ARCH=arm64
           export PLATFORM_VERSION=11
           export ANDROID_MAJOR_VERSION=r
           export SEC_BUILD_CONF_VENDOR_BUILD_OS=13
-          export CROSS_COMPILE="$SRCDIR/toolchain/gcc-cfp/gcc-cfp-jopp-only/aarch64-linux-android-4.9/bin/aarch64-linux-android-"
-          export PATH="$SRCDIR/toolchain/clang/host/linux-x86/clang-r349610-jopp/bin:$SRCDIR/toolchain/gcc-cfp/gcc-cfp-jopp-only/aarch64-linux-android-4.9/bin:$PATH"
+          export CROSS_COMPILE="$GCC_DIR/bin/aarch64-linux-android-"
+          export PATH="$SRCDIR/toolchain/clang/host/linux-x86/clang-r349610-jopp/bin:$GCC_DIR/bin:$PATH"
           CC_BIN="$SRCDIR/toolchain/clang/host/linux-x86/clang-r349610-jopp/bin/clang"
 
-          make ARCH=arm64 CC="$CC_BIN" CROSS_COMPILE="$CROSS_COMPILE" exynos9830-z3sxxx_defconfig
-          make ARCH=arm64 CC="$CC_BIN" CROSS_COMPILE="$CROSS_COMPILE" olddefconfig
-          make ARCH=arm64 CC="$CC_BIN" CROSS_COMPILE="$CROSS_COMPILE" syncconfig < /dev/null
+          MAKE_ARGS=(
+            ARCH=arm64
+            CC="$CC_BIN"
+            CROSS_COMPILE="$CROSS_COMPILE"
+            GCC_TOOLCHAIN_DIR="$GCC_DIR/bin/"
+            GCC_TOOLCHAIN="$GCC_DIR"
+          )
+
+          make "${MAKE_ARGS[@]}" exynos9830-z3sxxx_defconfig
+          make "${MAKE_ARGS[@]}" olddefconfig
+          make "${MAKE_ARGS[@]}" syncconfig < /dev/null
 
           echo "=== Verification des pilotes actives dans .config ==="
           grep -E "CONFIG_MAC80211=|CONFIG_RT2800USB=|CONFIG_RT2800USB_RT3573=|CONFIG_88XXAU=" .config
 
-          make -j$(nproc) ARCH=arm64 CC="$CC_BIN" CROSS_COMPILE="$CROSS_COMPILE" KCFLAGS="-w -Wno-gnu-variable-sized-type-not-at-end" < /dev/null
+          make -j$(nproc) "${MAKE_ARGS[@]}" KCFLAGS="-w -Wno-gnu-variable-sized-type-not-at-end" < /dev/null
 
           test -f arch/arm64/boot/Image
           cp arch/arm64/boot/Image Image
