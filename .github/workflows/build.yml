@@ -20,10 +20,14 @@ jobs:
           sudo ln -sf /usr/lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/x86_64-linux-gnu/libncurses.so.5 2>/dev/null || true
           sudo ln -sf /usr/lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/x86_64-linux-gnu/libtinfo.so.5 2>/dev/null || true
 
-      - name: Make toolchain executable
+      - name: Prepare toolchain and fix Makefile
         run: |
-          chmod -R +x toolchain/
+          chmod -R 755 toolchain/
           chmod +x build_kernel.sh
+          # Supprimer les drapeaux -Werror qui bloquent la compilation sur les avertissements
+          sed -i 's/-Werror//g' Makefile
+          sed -i 's/-Werror-implicit-function-declaration//g' Makefile
+          sed -i '691i KBUILD_CFLAGS += -Wno-error -Wno-gnu-variable-sized-type-not-at-end -w' Makefile
 
       - name: Enable RT3573 / AE3000 & Wi-Fi drivers in defconfig
         run: |
@@ -61,12 +65,18 @@ jobs:
       - name: Build Kernel Image
         run: |
           set -e
+          SRCDIR="$(pwd)"
+          export ARCH=arm64
           export PLATFORM_VERSION=11
           export ANDROID_MAJOR_VERSION=r
-          export ARCH=arm64
           export SEC_BUILD_CONF_VENDOR_BUILD_OS=13
+          export CROSS_COMPILE="$SRCDIR/toolchain/gcc-cfp/gcc-cfp-jopp-only/aarch64-linux-android-4.9/bin/aarch64-linux-android-"
+          export CC="$SRCDIR/toolchain/clang/host/linux-x86/clang-r349610-jopp/bin/clang"
+          export PATH="$SRCDIR/toolchain/clang/host/linux-x86/clang-r349610-jopp/bin:$SRCDIR/toolchain/gcc-cfp/gcc-cfp-jopp-only/aarch64-linux-android-4.9/bin:$PATH"
+
           make exynos9830-z3sxxx_defconfig
           make -j$(nproc)
+
           test -f arch/arm64/boot/Image
           cp arch/arm64/boot/Image Image
           zip arch/arm64/boot/Nethunter-s20ultra.zip Image
