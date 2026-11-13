@@ -20,14 +20,13 @@ jobs:
           sudo ln -sf /usr/lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/x86_64-linux-gnu/libncurses.so.5 2>/dev/null || true
           sudo ln -sf /usr/lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/x86_64-linux-gnu/libtinfo.so.5 2>/dev/null || true
 
-      - name: Prepare toolchain and fix Makefile
+      - name: Prepare toolchain and Makefile flags
         run: |
           chmod -R 755 toolchain/
           chmod +x build_kernel.sh
-          # Supprimer les drapeaux -Werror qui bloquent la compilation sur les avertissements
-          sed -i 's/-Werror//g' Makefile
-          sed -i 's/-Werror-implicit-function-declaration//g' Makefile
-          sed -i '691i KBUILD_CFLAGS += -Wno-error -Wno-gnu-variable-sized-type-not-at-end -w' Makefile
+          # Desactiver les avertissements sans corrompre la syntaxe du Makefile
+          echo "KBUILD_CFLAGS += -w -Wno-gnu-variable-sized-type-not-at-end" >> Makefile
+          echo "CLANG_FLAGS += -w" >> Makefile
 
       - name: Enable RT3573 / AE3000 & Wi-Fi drivers in defconfig
         run: |
