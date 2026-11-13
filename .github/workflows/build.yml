@@ -16,7 +16,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc bison flex libssl-dev make zip python-is-python3 libelf-dev libncurses6 libtinfo6 binutils-aarch64-linux-gnu
+          sudo apt-get install -y bc bison flex libssl-dev make zip python-is-python3 python2 libelf-dev libncurses6 libtinfo6 binutils-aarch64-linux-gnu
           sudo ln -sf /usr/lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/x86_64-linux-gnu/libncurses.so.5 2>/dev/null || true
           sudo ln -sf /usr/lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/x86_64-linux-gnu/libtinfo.so.5 2>/dev/null || true
 
@@ -29,6 +29,19 @@ jobs:
             ln -sf "aarch64-linux-android-$tool" "$GCC_DIR/bin/aarch64-linux-gnu-$tool"
           done
           ln -sfn aarch64-linux-android "$GCC_DIR/aarch64-linux-gnu"
+
+      - name: Pre-flight check post-link Python scripts and tools
+        run: |
+          GCC_DIR="$(pwd)/toolchain/gcc-cfp/gcc-cfp-jopp-only/aarch64-linux-android-4.9"
+          python2 --version
+          python3 --version
+          PYTHONDONTWRITEBYTECODE=1 python2 -c "import argparse, subprocess, os, re, mmap, contextlib, binascii, multiprocessing, math, tempfile, pipes; import sys; sys.path.insert(0, 'scripts/rkp_cfp'); import common"
+          PYTHONDONTWRITEBYTECODE=1 python3 -c "import os, sys, hmac, hashlib, bisect, itertools, binascii, struct, subprocess, re, collections; sys.path.insert(0, 'scripts/crypto'); import ELF, IntegrityRoutine, Utils"
+          CROSS_COMPILE="$GCC_DIR/bin/aarch64-linux-android-" PYTHONDONTWRITEBYTECODE=1 python3 -c "import os, sys; sys.path.insert(0, 'scripts/fmp'); import ELF, IntegrityRoutine, Utils"
+          "$GCC_DIR/bin/aarch64-linux-android-objdump" --version | head -n 1
+          "$GCC_DIR/bin/aarch64-linux-android-nm" --version | head -n 1
+          "$GCC_DIR/bin/aarch64-linux-android-readelf" --version | head -n 1
+          readelf --version | head -n 1
 
       - name: Enable RT3573 / AE3000 & Wi-Fi drivers in defconfig
         run: |
@@ -103,6 +116,8 @@ jobs:
       - name: Package S20+ Zip
         run: |
           cp arch/arm64/boot/Nethunter-s20ultra.zip Nethunter-s20plus-ae3000.zip
+          unzip -l Nethunter-s20plus-ae3000.zip
+          unzip -p Nethunter-s20plus-ae3000.zip anykernel.sh | head -n 20
 
       - name: Upload Finished Kernel Zip
         uses: actions/upload-artifact@v4
